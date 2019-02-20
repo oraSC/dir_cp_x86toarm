@@ -27,7 +27,7 @@ int main()
 	{
 		bzero(buff, sizeof(buff));
 
-		recv(acc_fd, buff, sizeof(buff), 0);
+		recv(acc_fd, buff, 1, 0);
 		printf("%s", buff);
 		
 		
