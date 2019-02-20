@@ -4,7 +4,21 @@
 #include <arpa/inet.h>
 #include <strings.h>
 #include <string.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+
 #include "../lib/socket/mysocket.h"
+typedef struct FileInfo{
+
+	int  name_size;
+	long text_size;
+	struct stat stat_buff;
+
+}FileInfo_t;
+
+
+
 
 
 int main()
@@ -22,14 +36,44 @@ int main()
 	}
 	printf("client ip:%s\tport:%d\n", client_ip, client_port);
 	
-	char buff[100] = {0};
+	
+	FileInfo_t fileinfo;
+	
 	while(1)
 	{
-		bzero(buff, sizeof(buff));
-
-		recv(acc_fd, buff, 1, 0);
-		printf("%s", buff);
 		
+		bzero(&fileinfo, sizeof(fileinfo));
+		
+		//接收文件长度信息
+		ret = recv(acc_fd, &fileinfo, sizeof(fileinfo), 0);
+		if(ret < 0)
+		{
+			perror("error exits in recv");
+			goto error;
+		}
+		else if(ret == 0)
+		{
+			printf("client offlines\n");
+			break;
+		}
+		printf("\nname size:%d, text size:%ld, mode:%o\n", fileinfo.name_size, fileinfo.text_size, fileinfo.stat_buff.st_mode);
+		printf("%d\n", fileinfo.name_size * sizeof(char));	
+		//接收文件名
+		unsigned char *pdst_path = (unsigned char *)malloc(fileinfo.name_size * sizeof(char));
+		ret = recv(acc_fd, pdst_path, sizeof(fileinfo.name_size * sizeof(char)), 0);
+		if(ret < 0)
+		{
+			perror("error exits in recv");
+			goto error;
+		}
+		else if(ret == 0)
+		{
+			printf("client offlines\n");
+			break;
+		}
+		printf("dst path:%s\n", pdst_path);
+		
+		free(pdst_path);
 		
 	}
 
@@ -42,5 +86,9 @@ int main()
 	}
 
 	return 0;
+error:
+	shutdown(acc_fd, SHUT_RDWR);
+	return -1;
+
 
 }
