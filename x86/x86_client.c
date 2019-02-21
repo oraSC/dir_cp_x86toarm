@@ -27,6 +27,7 @@ typedef struct FileInfo{
 
 int copy_file(unsigned char *src_path, unsigned char *dst_path);
 int copy_dir(unsigned char *src_dir, unsigned char *dir_dir);
+int tell_client_waityoufinish();
 
 pPool_t ppool = NULL;
 
@@ -48,8 +49,8 @@ int main(int argc, char *argv[])
 	}
 	
 	//创建拷贝文件客户端，连接拷贝文件服务器
-	//soc_fd_copyfile = client_create(3000, "202.192.32.79");
-	soc_fd_copyfile = client_create(3000, "202.192.32.97");
+	soc_fd_copyfile = client_create(3000, "202.192.32.79");
+	//soc_fd_copyfile = client_create(3000, "202.192.32.97");
 	if(soc_fd_copyfile < 0)
 	{
 		perror("fail to create copyfile client");
@@ -58,8 +59,8 @@ int main(int argc, char *argv[])
 	sleep(1);
 
 	//创建创建目录客户端，连接创建目录服务器
-	//soc_fd_mkdir = client_create(4000, "202.192.32.79");
-	soc_fd_mkdir = client_create(4000, "202.192.32.97");
+	soc_fd_mkdir = client_create(4000, "202.192.32.79");
+	//soc_fd_mkdir = client_create(4000, "202.192.32.97");
 	if(soc_fd_mkdir < 0)
 	{
 		perror("fail to create mkdir client");
@@ -78,13 +79,17 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-
-	sleep(10);
-
+	
+	//等待任务链表任务数为零
+	/*
+	 *bug:未考虑当子线程将所有已添加任务完成，但是仍有未添加任务
+	 */
 	wait_task_finish(ppool);	
 
 	pool_destroy(ppool);
 	
+	tell_client_waityoufinish();
+
 	//关闭套接字
 	shutdown(soc_fd_copyfile, SHUT_RDWR);
 	shutdown(soc_fd_mkdir, SHUT_RDWR);
@@ -92,6 +97,49 @@ int main(int argc, char *argv[])
 	return 0;
 
 }
+
+int tell_client_waityoufinish()
+{
+	int ret;
+
+	//(结束文件:name_size = 0, text_size = 0, mode = 0)
+	/************************ 发送结束文件信息、数据 ***************************/
+	//定义输出文件长度信息、用户操作权限信息
+	FileInfo_t fileinfo;
+
+	fileinfo.name_size = 0;
+	fileinfo.text_size = 0;
+	fileinfo.mode = 0;
+	
+	//发送文件长度信息	
+	ret = send(soc_fd_copyfile, &fileinfo, sizeof(fileinfo), 0);
+	
+	printf("wait server recv over...\n");
+
+	//接收拷贝结束回复
+	char finish_buff[10];
+	while(1)
+	{
+		bzero(finish_buff, sizeof(finish_buff));
+		ret = recv(soc_fd_mkdir, finish_buff, sizeof(finish_buff), 0);
+		printf("%s\n", finish_buff);
+		if(ret < 0)
+		{
+			perror("error exits when wait client finish");
+			return -1;
+		}
+		else if(strcmp(finish_buff, "finish") == 0)
+		{
+			break;
+		}
+	}
+
+	return 0;
+
+}
+
+
+
 
 int copy_file(unsigned char *src_path, unsigned char *dst_path)
 {

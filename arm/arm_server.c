@@ -27,6 +27,7 @@ typedef struct FileInfo{
  *	客户端下线：	0
  */
 int recv_write_file(int acc_fd);
+int tell_client_finish(int acc_fd);
 
 //拷贝文件线程函数
 void *copyfile_routine(void *arg);
@@ -131,8 +132,26 @@ int main()
 		
 	}
 
+
+	char join_buff[10];
 	//等待线程结束
-	pthread_join(pthid_copyfile, NULL);
+	pthread_join(pthid_copyfile, (void *)&join_buff);
+	if(strcmp(join_buff, "finish") == 0)
+	{
+		//发送结束消息
+		ret = send(acc_fd_mkdir, "finish", strlen("finish"), 0);
+		if(ret < 0)
+		{
+			printf("error exits when tell client finish\n");
+			/*
+			 *backlog:
+			 *
+			 */
+			return -1;
+		}
+		printf("send finish\n");
+
+	}
 
 	//关闭套接字
 	ret = shutdown(acc_fd_copyfile, SHUT_RDWR);
@@ -154,6 +173,7 @@ int main()
 
 }
 
+	
 void *copyfile_routine(void *arg)
 {
 	
@@ -169,20 +189,25 @@ void *copyfile_routine(void *arg)
 		ret = recv_write_file(acc_fd);
 		if(ret < 0)
 		{
+			//出错
 			perror("error exit in recv_write_file");
-			pthread_exit(NULL);
+			pthread_exit("error");
 		}
 		else if(ret == 0)
 		{
 			//客户端下线
+			pthread_exit("offline");
+			break;
+		
+		}
+		else if(ret == 2)
+		{
+			//拷贝结束
+			pthread_exit("finish");
 			break;
 		
 		}
 	}
-	
-	pthread_exit(NULL);
-
-
 }
 
 
@@ -211,8 +236,19 @@ int recv_write_file(int acc_fd)
 		printf("client offlines\n");
 		goto offline;
 	}
-	printf("\nname size:%d, text size:%d, mode:%o\n", fileinfo.name_size, fileinfo.text_size, fileinfo.mode);
+	//判断是否为结束文件
+	if(fileinfo.name_size == 0 && fileinfo.text_size == 0 && fileinfo.mode == 0)
+	{
+		printf("it is end_file\n");
+		return 2;
 	
+	}
+
+	printf("\nname size:%d, text size:%d, mode:%o\n", fileinfo.name_size, fileinfo.text_size, fileinfo.mode);
+
+
+
+
 	/***************************** 2.接收文件名 ************************/
 	//(+1 解决malloc分配内存按4倍数)
 	unsigned char *pdst_path = (unsigned char *)malloc(fileinfo.name_size * sizeof(char) + 1);
