@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 	}
 	
 	//连接客户端
-	soc_fd = client_create(1000, "202.192.32.48");
+	soc_fd = client_create(1000, "202.192.32.79");
 	if(soc_fd < 0)
 	{
 		perror("fail to create client");
@@ -132,8 +132,9 @@ int copy_file(unsigned char *src_path, unsigned char *dst_path)
 	ret = send(soc_fd, dst_path, strlen(dst_path), 0);
 
 	//发送文件数据	
-	//ret = send(soc_fd, pdata, strlen(pdata), 0);
-	
+	ret = send(soc_fd, pdata, size, 0);
+	printf("data:\n%s\n", pdata);
+
 	//释放堆内存
 	free(pdata);
 
