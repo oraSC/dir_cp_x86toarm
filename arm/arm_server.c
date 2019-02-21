@@ -14,8 +14,9 @@
 typedef struct FileInfo{
 
 	int  name_size;
-	long text_size;
-	struct stat stat_buff;
+	int text_size;
+	//struct stat stat_buff; //弃用，此结构体在64位系统大小为144,32位系统大小为88
+	int mode;
 
 }FileInfo_t;
 
@@ -37,12 +38,12 @@ extern int errno;
 int main()
 {
 	int ret;
-	
+
 	//采用多路传输
 	//创建文件拷贝服务器
 	int client_copyfile_port;
 	unsigned char *client_copyfile_ip;
-	int acc_fd_copyfile = server_create(1000, NULL, &client_copyfile_port, &client_copyfile_ip);
+	int acc_fd_copyfile = server_create(3000, NULL, &client_copyfile_port, &client_copyfile_ip);
 	if(acc_fd_copyfile < 0)
 	{
 		perror("fail to create copyfile server");
@@ -53,7 +54,7 @@ int main()
 	//创建目录创建服务器
 	int client_mkdir_port;
 	unsigned char *client_mkdir_ip;
-	int acc_fd_mkdir = server_create(2000, NULL, &client_mkdir_port, &client_mkdir_ip);
+	int acc_fd_mkdir = server_create(4000, NULL, &client_mkdir_port, &client_mkdir_ip);
 	if(acc_fd_mkdir < 0)
 	{
 		perror("fail to create mkdir server");
@@ -210,7 +211,7 @@ int recv_write_file(int acc_fd)
 		printf("client offlines\n");
 		goto offline;
 	}
-	printf("\nname size:%d, text size:%ld, mode:%o\n", fileinfo.name_size, fileinfo.text_size, fileinfo.stat_buff.st_mode);
+	printf("\nname size:%d, text size:%d, mode:%o\n", fileinfo.name_size, fileinfo.text_size, fileinfo.mode);
 	
 	/***************************** 2.接收文件名 ************************/
 	//(+1 解决malloc分配内存按4倍数)
@@ -283,7 +284,8 @@ int recv_write_file(int acc_fd)
 	}
 	
 	/************************** 7.修改用户操作权限 *************************/
-	ret = chmod(pdst_path, fileinfo.stat_buff.st_mode);
+	//ret = chmod(pdst_path, fileinfo.stat_buff.st_mode);
+	ret = chmod(pdst_path, fileinfo.mode);
 	if(ret < 0)
 	{
 		printf("fail to chmod %s\n", pdst_path);

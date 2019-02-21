@@ -15,8 +15,9 @@
 typedef struct FileInfo{
 
 	int name_size;;
-	long text_size;
-	struct stat stat_buff;
+	int text_size;
+	//struct stat stat_buff; //弃用，64位机和32位机结构体大小不同
+	int mode;
 
 }FileInfo_t;
 
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
 {
 
 	int ret; 
+	
 	//创建线程池
 	ppool = pool_create(1);
 	if(ppool == NULL)
@@ -46,18 +48,21 @@ int main(int argc, char *argv[])
 	}
 	
 	//创建拷贝文件客户端，连接拷贝文件服务器
-	soc_fd_copyfile = client_create(1000, "202.192.32.79");
+	//soc_fd_copyfile = client_create(3000, "202.192.32.79");
+	soc_fd_copyfile = client_create(3000, "202.192.32.97");
 	if(soc_fd_copyfile < 0)
 	{
-		perror("fail to create client");
+		perror("fail to create copyfile client");
 		return -1;
 	}
-	
+	sleep(1);
+
 	//创建创建目录客户端，连接创建目录服务器
-	soc_fd_mkdir = client_create(2000, "202.192.32.79");
+	//soc_fd_mkdir = client_create(4000, "202.192.32.79");
+	soc_fd_mkdir = client_create(4000, "202.192.32.97");
 	if(soc_fd_mkdir < 0)
 	{
-		perror("fail to create client");
+		perror("fail to create mkdir client");
 		return -1;
 	}
 
@@ -72,7 +77,10 @@ int main(int argc, char *argv[])
 		 */
 		return -1;
 	}
-		
+
+
+	sleep(10);
+
 	wait_task_finish(ppool);	
 
 	pool_destroy(ppool);
@@ -137,8 +145,8 @@ int copy_file(unsigned char *src_path, unsigned char *dst_path)
 
 	fileinfo.name_size = strlen(dst_path);
 	fileinfo.text_size = size;
-	fileinfo.stat_buff = stat_buff;
-	printf("\nname size:%d, text size:%ld, mode:%o\n", fileinfo.name_size, fileinfo.text_size, fileinfo.stat_buff.st_mode);	
+	fileinfo.mode = pstat_buff->st_mode;
+	printf("\nname size:%d, text size:%d, mode:%o\n", fileinfo.name_size, fileinfo.text_size, fileinfo.mode);	
 	printf("dst path:%s\n", dst_path);
 
 	//发送文件长度信息	
