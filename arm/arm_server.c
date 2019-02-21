@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #include "../lib/socket/mysocket.h"
 typedef struct FileInfo{
@@ -25,6 +26,8 @@ typedef struct FileInfo{
  */
 int recv_write_file(int acc_fd);
 
+//拷贝文件线程函数
+void *copyfile_routine(void *arg);
 
 
 int main()
@@ -34,35 +37,31 @@ int main()
 	//创建服务器
 	int client_port;
 	unsigned char *client_ip;
-	int acc_fd = server_create(1000, NULL, &client_port, &client_ip);
+	int acc_fd_copyfile = server_create(1000, NULL, &client_port, &client_ip);
 	
 	//采用多路传输
 	//int acc_fd2 = server_create(2000, NULL, &client_port, &client_ip);
-	if(acc_fd < 0)
+	if(acc_fd_copyfile < 0)
 	{
 		perror("fail to create server");
 		return -1;
 	}
 	printf("client ip:%s\tport:%d\n", client_ip, client_port);
-	while(1)
-	{
-		ret = recv_write_file(acc_fd);
-		if(ret < 0)
-		{
-			perror("error exit in recv_write_file");
-			return -1;
-		}
-		else if(ret == 0)
-		{
-			//客户端下线
-			break;
+
+	//创建文件拷贝线程
+	pthread_t pthid_copyfile;
+	ret = pthread_create(&pthid_copyfile, NULL, copyfile_routine, &acc_fd_copyfile);
+
+	while(0)
+	{	
 		
-		}
 	}
 
+	//等待线程结束
+	pthread_join(pthid_copyfile, NULL);
 
 	//关闭套接字
-	ret = shutdown(acc_fd, SHUT_RDWR);
+	ret = shutdown(acc_fd_copyfile, SHUT_RDWR);
 	if(ret < 0)
 	{
 		perror("fail to shudown acc_fd");
@@ -72,6 +71,39 @@ int main()
 	return 0;
 
 }
+
+void *copyfile_routine(void *arg)
+{
+	
+	int ret;
+	
+	//线程分离
+	//pthread_detach(pthread_self());
+
+	//转化参数
+	int acc_fd = *((int *)arg);
+	while(1)
+	{
+		ret = recv_write_file(acc_fd);
+		if(ret < 0)
+		{
+			perror("error exit in recv_write_file");
+			pthread_exit(NULL);
+		}
+		else if(ret == 0)
+		{
+			//客户端下线
+			break;
+		
+		}
+	}
+	
+	pthread_exit(NULL);
+
+
+}
+
+
 
 
 int recv_write_file(int acc_fd)
@@ -168,6 +200,15 @@ int recv_write_file(int acc_fd)
 		printf("fail to close %s\n", pdst_path);
 		goto error_recv_finish;
 	}
+	
+	/************************** 7.修改用户操作权限 *************************/
+	ret = chmod(pdst_path, fileinfo.stat_buff.st_mode);
+	if(ret < 0)
+	{
+		printf("fail to chmod %s\n", pdst_path);
+		goto error_recv_finish;
+	}
+
 
 	/************************* 7.释放资源 ************************************/
 	free(pdata);
