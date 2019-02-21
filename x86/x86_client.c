@@ -30,7 +30,8 @@ int copy_dir(unsigned char *src_dir, unsigned char *dir_dir);
 pPool_t ppool = NULL;
 
 
-int soc_fd;
+int soc_fd_copyfile;
+int soc_fd_mkdir;
 
 int main(int argc, char *argv[])
 {
@@ -44,14 +45,23 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 	
-	//连接客户端
-	soc_fd = client_create(1000, "202.192.32.79");
-	if(soc_fd < 0)
+	//创建拷贝文件客户端，连接拷贝文件服务器
+	soc_fd_copyfile = client_create(1000, "202.192.32.79");
+	if(soc_fd_copyfile < 0)
 	{
 		perror("fail to create client");
 		return -1;
 	}
 	
+	//创建创建目录客户端，连接创建目录服务器
+	soc_fd_mkdir = client_create(2000, "202.192.32.79");
+	if(soc_fd_mkdir < 0)
+	{
+		perror("fail to create client");
+		return -1;
+	}
+
+
 	//搜索dir,同时将创建任务节点添加到任务链表
 	ret = copy_dir(argv[1], argv[2]);
 	if(ret < 0)
@@ -66,6 +76,11 @@ int main(int argc, char *argv[])
 	wait_task_finish(ppool);	
 
 	pool_destroy(ppool);
+	
+	//关闭套接字
+	shutdown(soc_fd_copyfile, SHUT_RDWR);
+	shutdown(soc_fd_mkdir, SHUT_RDWR);
+
 	return 0;
 
 }
@@ -115,7 +130,8 @@ int copy_file(unsigned char *src_path, unsigned char *dst_path)
 		perror("fail to read from src file");
 		return -1;
 	}
-	
+
+	/************************ 发送文件信息、数据 ***************************/
 	//定义输出文件长度信息、用户操作权限信息
 	FileInfo_t fileinfo;
 
@@ -126,13 +142,13 @@ int copy_file(unsigned char *src_path, unsigned char *dst_path)
 	printf("dst path:%s\n", dst_path);
 
 	//发送文件长度信息	
-	ret = send(soc_fd, &fileinfo, sizeof(fileinfo), 0);
+	ret = send(soc_fd_copyfile, &fileinfo, sizeof(fileinfo), 0);
 	
 	//发送文件名信息
-	ret = send(soc_fd, dst_path, strlen(dst_path), 0);
+	ret = send(soc_fd_copyfile, dst_path, strlen(dst_path), 0);
 
 	//发送文件数据	
-	ret = send(soc_fd, pdata, size, 0);
+	ret = send(soc_fd_copyfile, pdata, size, 0);
 	printf("data:\n%s\n", pdata);
 
 	//释放堆内存
@@ -208,13 +224,27 @@ int copy_dir(unsigned char *src_dir, unsigned char *dst_dir)
 			{
 				//创建目录
 				//ret = mkdir(dst_path, 0777);
+
+				/************** 发送目录长度 ******************/
+				int dir_size = 0;
+
+				dir_size = strlen(dst_path);
+				ret = send(soc_fd_mkdir, &dir_size, sizeof(int), 0);
 				if(ret < 0)
 				{
 					printf("fail to mkdir %s\n", dst_path);
 					return -1;
 				}	
-
-
+				
+				/*************** 发送目录名称 *******************/
+				ret = send(soc_fd_mkdir, dst_path, strlen(dst_path), 0);
+				if(ret < 0)
+				{
+					printf("fail to mkdir %s\n", dst_path);
+					return -1;
+				}	
+				
+				//搜索下一级目录
 				ret = copy_dir(src_path, dst_path);
 				if(ret < 0)
 				{

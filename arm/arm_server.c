@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <errno.h>
 
 #include "../lib/socket/mysocket.h"
 typedef struct FileInfo{
@@ -29,31 +30,103 @@ int recv_write_file(int acc_fd);
 //拷贝文件线程函数
 void *copyfile_routine(void *arg);
 
+//声明全局错误码
+extern int errno;
+
 
 int main()
 {
 	int ret;
 	
-	//创建服务器
-	int client_port;
-	unsigned char *client_ip;
-	int acc_fd_copyfile = server_create(1000, NULL, &client_port, &client_ip);
-	
 	//采用多路传输
-	//int acc_fd2 = server_create(2000, NULL, &client_port, &client_ip);
+	//创建文件拷贝服务器
+	int client_copyfile_port;
+	unsigned char *client_copyfile_ip;
+	int acc_fd_copyfile = server_create(1000, NULL, &client_copyfile_port, &client_copyfile_ip);
 	if(acc_fd_copyfile < 0)
 	{
-		perror("fail to create server");
+		perror("fail to create copyfile server");
 		return -1;
 	}
-	printf("client ip:%s\tport:%d\n", client_ip, client_port);
+	printf("client ip:%s\tport:%d\n", client_copyfile_ip, client_copyfile_port);
 
+	//创建目录创建服务器
+	int client_mkdir_port;
+	unsigned char *client_mkdir_ip;
+	int acc_fd_mkdir = server_create(2000, NULL, &client_mkdir_port, &client_mkdir_ip);
+	if(acc_fd_mkdir < 0)
+	{
+		perror("fail to create mkdir server");
+		return -1;
+	}
+	printf("client ip:%s\tport:%d\n", client_mkdir_ip, client_mkdir_port);
+	
+	
 	//创建文件拷贝线程
 	pthread_t pthid_copyfile;
 	ret = pthread_create(&pthid_copyfile, NULL, copyfile_routine, &acc_fd_copyfile);
 
-	while(0)
-	{	
+	/******************* 主线程负责创建目录 ******************************/
+	while(1)
+	{
+		/****************** 接收目录长度 ***************************/
+		int dir_size = 0;
+		
+		ret = recv(acc_fd_mkdir, &dir_size, sizeof(int), 0);
+		if(ret == 0)
+		{
+			printf("mkdir client offline\n");
+			break;
+		
+		}
+		printf("dir size:%d\n", dir_size);
+
+
+		/****************** 接收目录名称 ***************************/
+		unsigned char *dir_name = (unsigned char *)malloc(dir_size * sizeof(char) + 1);
+		//清空
+		bzero(dir_name, dir_size * sizeof(char) + 1);
+		ret = recv(acc_fd_mkdir, dir_name, dir_size, 0);
+		if(ret < 0)
+		{
+			perror("fail to recv dir name");
+			
+			pthread_join(pthid_copyfile, NULL);
+			shutdown(acc_fd_copyfile, SHUT_RDWR);
+			shutdown(acc_fd_mkdir, SHUT_RDWR);
+			return -1;
+		}
+
+		if(ret == 0)
+		{
+			printf("mkdir client offline\n");
+			break;
+		
+		}
+		printf("mkdir: %s\n", dir_name);
+
+		/********************* 创建目录 ***************************/
+		ret = mkdir(dir_name, 0777);
+		if(ret < 0)
+		{
+			//如果错误为"file exit",继续执行
+			if(strcmp(strerror(errno), "File exits"))	
+			{
+				continue;
+			}
+
+			perror("fail to mkdir");
+			pthread_join(pthid_copyfile, NULL);
+			shutdown(acc_fd_copyfile, SHUT_RDWR);
+			shutdown(acc_fd_mkdir, SHUT_RDWR);
+			return -1;
+
+		}
+
+
+		//释放资源
+		free(dir_name);
+
 		
 	}
 
@@ -62,6 +135,14 @@ int main()
 
 	//关闭套接字
 	ret = shutdown(acc_fd_copyfile, SHUT_RDWR);
+	if(ret < 0)
+	{
+		perror("fail to shudown acc_fd");
+		return -1;
+	}
+
+	//关闭套接字
+	ret = shutdown(acc_fd_mkdir, SHUT_RDWR);
 	if(ret < 0)
 	{
 		perror("fail to shudown acc_fd");
