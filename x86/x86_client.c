@@ -49,8 +49,8 @@ int main(int argc, char *argv[])
 	}
 	
 	//创建拷贝文件客户端，连接拷贝文件服务器
-	//soc_fd_copyfile = client_create(3000, "202.192.32.79");
-	soc_fd_copyfile = client_create(3000, "202.192.32.82");
+	soc_fd_copyfile = client_create(3000, "202.192.32.79");
+	//soc_fd_copyfile = client_create(3000, "202.192.32.82");
 	if(soc_fd_copyfile < 0)
 	{
 		perror("fail to create copyfile client");
@@ -59,8 +59,8 @@ int main(int argc, char *argv[])
 	sleep(1);
 
 	//创建创建目录客户端，连接创建目录服务器
-	//soc_fd_mkdir = client_create(4000, "202.192.32.79");
-	soc_fd_mkdir = client_create(4000, "202.192.32.82");
+	soc_fd_mkdir = client_create(4000, "202.192.32.79");
+	//soc_fd_mkdir = client_create(4000, "202.192.32.82");
 	if(soc_fd_mkdir < 0)
 	{
 		perror("fail to create mkdir client");
