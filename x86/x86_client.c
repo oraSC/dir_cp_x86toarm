@@ -27,7 +27,7 @@ typedef struct FileInfo{
 
 int copy_file(unsigned char *src_path, unsigned char *dst_path);
 int copy_dir(unsigned char *src_dir, unsigned char *dir_dir);
-int tell_client_waityoufinish();
+int tell_server_waityoufinish();
 
 pPool_t ppool = NULL;
 
@@ -49,8 +49,8 @@ int main(int argc, char *argv[])
 	}
 	
 	//创建拷贝文件客户端，连接拷贝文件服务器
-	soc_fd_copyfile = client_create(3000, "202.192.32.79");
-	//soc_fd_copyfile = client_create(3000, "202.192.32.97");
+	//soc_fd_copyfile = client_create(3000, "202.192.32.79");
+	soc_fd_copyfile = client_create(3000, "202.192.32.82");
 	if(soc_fd_copyfile < 0)
 	{
 		perror("fail to create copyfile client");
@@ -59,8 +59,8 @@ int main(int argc, char *argv[])
 	sleep(1);
 
 	//创建创建目录客户端，连接创建目录服务器
-	soc_fd_mkdir = client_create(4000, "202.192.32.79");
-	//soc_fd_mkdir = client_create(4000, "202.192.32.97");
+	//soc_fd_mkdir = client_create(4000, "202.192.32.79");
+	soc_fd_mkdir = client_create(4000, "202.192.32.82");
 	if(soc_fd_mkdir < 0)
 	{
 		perror("fail to create mkdir client");
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 
 	pool_destroy(ppool);
 	
-	tell_client_waityoufinish();
+	tell_server_waityoufinish();
 
 	//关闭套接字
 	shutdown(soc_fd_copyfile, SHUT_RDWR);
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 
 }
 
-int tell_client_waityoufinish()
+int tell_server_waityoufinish()
 {
 	int ret;
 
@@ -114,6 +114,10 @@ int tell_client_waityoufinish()
 	//发送文件长度信息	
 	ret = send(soc_fd_copyfile, &fileinfo, sizeof(fileinfo), 0);
 	
+	/*********************** 发送结束创建目录信息 ********************************/
+	int finish_mkdir = 0;
+	ret = send(soc_fd_mkdir, &finish_mkdir, sizeof(int), 0);
+
 	printf("wait server recv over...\n");
 
 	//接收拷贝结束回复
@@ -128,6 +132,12 @@ int tell_client_waityoufinish()
 			perror("error exits when wait client finish");
 			return -1;
 		}
+		else if(ret == 0)
+		{
+			printf("server offline\n");
+			break;
+		}
+
 		else if(strcmp(finish_buff, "finish") == 0)
 		{
 			break;

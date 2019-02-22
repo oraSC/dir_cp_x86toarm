@@ -81,8 +81,13 @@ int main()
 			break;
 		
 		}
+		/*************** 结束mkdir信息 ********************************/
+		else if(dir_size == 0)
+		{
+			printf("finish to mkdir");
+			break;
+		}
 		printf("dir size:%d\n", dir_size);
-
 
 		/****************** 接收目录名称 ***************************/
 		unsigned char *dir_name = (unsigned char *)malloc(dir_size * sizeof(char) + 1);
@@ -98,8 +103,7 @@ int main()
 			shutdown(acc_fd_mkdir, SHUT_RDWR);
 			return -1;
 		}
-
-		if(ret == 0)
+		else if(ret == 0)
 		{
 			printf("mkdir client offline\n");
 			break;
@@ -133,9 +137,10 @@ int main()
 	}
 
 
-	char join_buff[10];
+	char *join_buff;
 	//等待线程结束
 	pthread_join(pthid_copyfile, (void *)&join_buff);
+	printf("%s\n", join_buff);
 	if(strcmp(join_buff, "finish") == 0)
 	{
 		//发送结束消息
@@ -197,14 +202,12 @@ void *copyfile_routine(void *arg)
 		{
 			//客户端下线
 			pthread_exit("offline");
-			break;
 		
 		}
 		else if(ret == 2)
 		{
 			//拷贝结束
 			pthread_exit("finish");
-			break;
 		
 		}
 	}
