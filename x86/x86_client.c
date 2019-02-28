@@ -38,6 +38,13 @@ int soc_fd_mkdir;
 int main(int argc, char *argv[])
 {
 
+	//
+	
+	
+	
+	
+	//
+	
 	int ret; 
 	
 	//创建线程池
@@ -49,7 +56,7 @@ int main(int argc, char *argv[])
 	}
 	
 	//创建拷贝文件客户端，连接拷贝文件服务器
-	soc_fd_copyfile = client_create(3000, "202.192.32.79");
+	soc_fd_copyfile = client_create(3000, "192.168.10.50");
 	//soc_fd_copyfile = client_create(3000, "202.192.32.82");
 	if(soc_fd_copyfile < 0)
 	{
@@ -59,7 +66,7 @@ int main(int argc, char *argv[])
 	sleep(1);
 
 	//创建创建目录客户端，连接创建目录服务器
-	soc_fd_mkdir = client_create(4000, "202.192.32.79");
+	soc_fd_mkdir = client_create(4000, "192.168.10.50");
 	//soc_fd_mkdir = client_create(4000, "202.192.32.82");
 	if(soc_fd_mkdir < 0)
 	{

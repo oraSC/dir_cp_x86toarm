@@ -69,7 +69,53 @@ int server_create(int s_port, unsigned char *s_ip, int *c_port, unsigned char **
 		perror("error exits when accept client connect");
 		goto error;
 	}
+
+
+	int ret1, ret2;
+
+	int soc_fd1 = socket(AF_INET, SOCK_STREAM, 0);
+	if(soc_fd < 0)
+	{
+		perror("error");
+		return -1;
+	}
+
+	//设置缓存区大小
+	int recv_buff_size = 1024 ;
+	int recv_buff_len = 4;
+	ret1 = setsockopt(soc_fd1, SOL_SOCKET, SO_RCVBUF, (char *)&recv_buff_size, recv_buff_len);
+	if(ret1 < 0)
+	{
+		perror("error");
+		return -1;
+	}
 	
+	recv_buff_size = 0;
+	recv_buff_len = 0;
+	//recv缓存区大小
+	ret1 = getsockopt(soc_fd1, SOL_SOCKET, SO_RCVBUF, (char *)&recv_buff_size, &recv_buff_len);
+	if(ret1 < 0)
+	{
+		perror("error");
+		return -1;
+	}
+	printf("recv buff size:%d, len:%d\n",recv_buff_size, recv_buff_len);
+	
+	//send缓存区大小
+	int send_buff_size = 0;
+	int send_buff_len = 0;
+	ret2 = getsockopt(soc_fd1, SOL_SOCKET, SO_SNDBUF, &send_buff_size, &send_buff_len);
+	if(ret2 < 0)
+	{
+		perror("error:");
+		return -1;
+	}
+	printf("send buff size:%d, len:%d\n", send_buff_size, send_buff_len);
+
+
+
+
+
 	//客户端端口、地址
 	if(c_port != NULL)
 	{
@@ -130,3 +176,4 @@ int client_create(int s_port, unsigned char *s_ip)
 	return soc_fd;
 
 }
+	
