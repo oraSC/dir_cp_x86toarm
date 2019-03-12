@@ -21,13 +21,21 @@ typedef struct FileInfo{
 
 }FileInfo_t;
 
-
+#define SEND_SINGLE_SIZE	1024
 
 
 
 int copy_file(unsigned char *src_path, unsigned char *dst_path);
 int copy_dir(unsigned char *src_dir, unsigned char *dir_dir);
 int tell_server_waityoufinish();
+
+/*
+*具有等待接受完成功能的Send
+*返回值：
+*		成功：0
+*		失败：-1
+*/
+int Send(int sockfd, const void *buff, size_t len, int flags);
 
 pPool_t ppool = NULL;
 
@@ -37,14 +45,11 @@ int soc_fd_mkdir;
 
 int main(int argc, char *argv[])
 {
+	
 
-	//
-	
-	
-	
-	
-	//
-	
+
+
+
 	int ret; 
 	
 	//创建线程池
@@ -56,18 +61,20 @@ int main(int argc, char *argv[])
 	}
 	
 	//创建拷贝文件客户端，连接拷贝文件服务器
-	soc_fd_copyfile = client_create(3000, "192.168.10.50");
-	//soc_fd_copyfile = client_create(3000, "202.192.32.82");
+	//soc_fd_copyfile = client_create(3000, "192.168.10.50");
+	soc_fd_copyfile = client_create(3000, "202.192.32.49");
 	if(soc_fd_copyfile < 0)
 	{
 		perror("fail to create copyfile client");
 		return -1;
 	}
+	//由于x86与arm平台的执行速度差，采用
+
 	sleep(1);
 
 	//创建创建目录客户端，连接创建目录服务器
-	soc_fd_mkdir = client_create(4000, "192.168.10.50");
-	//soc_fd_mkdir = client_create(4000, "202.192.32.82");
+	//soc_fd_mkdir = client_create(4000, "192.168.10.50");
+	soc_fd_mkdir = client_create(4000, "202.192.32.49");
 	if(soc_fd_mkdir < 0)
 	{
 		perror("fail to create mkdir client");
@@ -211,18 +218,35 @@ int copy_file(unsigned char *src_path, unsigned char *dst_path)
 	fileinfo.name_size = strlen(dst_path);
 	fileinfo.text_size = size;
 	fileinfo.mode = pstat_buff->st_mode;
-	printf("\nname size:%d, text size:%d, mode:%o\n", fileinfo.name_size, fileinfo.text_size, fileinfo.mode);	
-	printf("dst path:%s\n", dst_path);
+	printf("\ndst path:%s\n", dst_path);
+	printf("size:%d, text size:%d, mode:%o\n", fileinfo.name_size, fileinfo.text_size, fileinfo.mode);	
+	
 
 	//发送文件长度信息	
-	ret = send(soc_fd_copyfile, &fileinfo, sizeof(fileinfo), 0);
+	ret = Send(soc_fd_copyfile, &fileinfo, sizeof(fileinfo), 0);
 	
 	//发送文件名信息
-	ret = send(soc_fd_copyfile, dst_path, strlen(dst_path), 0);
+	ret = Send(soc_fd_copyfile, dst_path, strlen(dst_path), 0);
 
-	//发送文件数据	
-	ret = send(soc_fd_copyfile, pdata, size, 0);
-	printf("data:\n%s\n", pdata);
+	//发送文件数据
+	//若文件数据超过 SEND_SIGLE_SIZE Byte 分多次发送
+	int rest_size = fileinfo.text_size;
+	int send_num = rest_size / SEND_SINGLE_SIZE + 1;
+	for(int i = 0; i < send_num; i++)
+	{
+		if(rest_size > SEND_SINGLE_SIZE)
+		{
+			Send(soc_fd_copyfile, pdata + i*SEND_SINGLE_SIZE, SEND_SINGLE_SIZE, 0);
+		}
+		else 
+		{
+			Send(soc_fd_copyfile, pdata + i*SEND_SINGLE_SIZE, rest_size, 0);
+
+		}
+		//修改剩余大小
+		rest_size = rest_size - SEND_SINGLE_SIZE;
+
+	}
 
 	//释放堆内存
 	free(pdata);
@@ -239,7 +263,36 @@ int copy_file(unsigned char *src_path, unsigned char *dst_path)
 	return 0;
 }
 
+int Send(int sockfd, const void *buff, size_t len, int flags)
+{
+	int ret;
 
+	//发送数据
+	ret = send(sockfd, buff, len, flags);
+	if(ret < 0)
+	{
+		perror("error exists in Send->send");
+		return -1;
+
+	}
+
+	//等待回复
+	int RET = -1;
+	ret = recv(sockfd, &RET, sizeof(RET), 0);
+	if(ret < 0)
+	{
+		perror("error exists in Send->recv");
+		return -1;
+	}
+	if(RET != 1)
+	{
+		printf("failed\n");
+		return -1;
+	}
+	//printf("succeed\n");
+	return 0;
+
+}
 
 
 int copy_dir(unsigned char *src_dir, unsigned char *dst_dir)

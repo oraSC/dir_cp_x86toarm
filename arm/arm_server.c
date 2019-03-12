@@ -20,14 +20,24 @@ typedef struct FileInfo{
 
 }FileInfo_t;
 
+#define RECV_SINGLE_SIZE 1024
+
 /*功能：单次接收文件信息并创建写入文件
  *返回值：
  *	成功：		1
- *	失败：		-1;
+ *	失败：		-1;  
  *	客户端下线：	0
  */
 int recv_write_file(int acc_fd);
 int tell_client_finish(int acc_fd);
+
+/*
+*功能：具有回复接收完成的单次接收函数
+*返回值：
+*		成功：0
+*		失败：-1
+*/
+ssize_t Recv(int sockfd, void *buff, size_t len, int flags);
 
 //拷贝文件线程函数
 void *copyfile_routine(void *arg);
@@ -39,50 +49,8 @@ extern int errno;
 int main()
 {
 
-	/*
-	int ret1, ret2;
-
-	int soc_fd = socket(AF_INET, SOCK_STREAM, 0);
-	if(soc_fd < 0)
-	{
-		perror("error");
-		return -1;
-	}
-
-	//设置缓存区大小
-	int recv_buff_size = 1024 ;
-	int recv_buff_len = 4;
-	ret1 = setsockopt(soc_fd, SOL_SOCKET, SO_RCVBUF, &recv_buff_size, recv_buff_len);
-	if(ret1 < 0)
-	{
-		perror("error");
-		return -1;
-	}
-	
-	recv_buff_size = 0;
-	recv_buff_len = 4;
-	//recv缓存区大小
-	ret1 = getsockopt(soc_fd, SOL_SOCKET, SO_RCVBUF, &recv_buff_size, &recv_buff_len);
-	if(ret1 < 0)
-	{
-		perror("error");
-		return -1;
-	}
-	printf("recv buff size:%d, len:%d\n",recv_buff_size, recv_buff_len);
-	
-	//send缓存区大小
-	int send_buff_size = 0;
-	int send_buff_len = 4;
-	ret2 = getsockopt(soc_fd, SOL_SOCKET, SO_SNDBUF, &send_buff_size, &send_buff_len);
-	if(ret2 < 0)
-	{
-		perror("error:");
-		return -1;
-	}
-	printf("send buff size:%d, len:%d\n", send_buff_size, send_buff_len);
 	
 	
-*/	
 	
 	int ret;
 
@@ -274,7 +242,7 @@ int recv_write_file(int acc_fd)
 	bzero(&fileinfo, sizeof(fileinfo));
 	
 	/*********************** 1.接收文件长度、用户操作权限信息 ************************/
-	ret = recv(acc_fd, &fileinfo, sizeof(fileinfo), 0);
+	ret = Recv(acc_fd, &fileinfo, sizeof(fileinfo), 0);
 	if(ret < 0)
 	{
 		perror("error exits in recv size information");
@@ -304,7 +272,7 @@ int recv_write_file(int acc_fd)
 	//清空
 	bzero(pdst_path, fileinfo.name_size * sizeof(char) + 1);
 
-	ret = recv(acc_fd, pdst_path, fileinfo.name_size * sizeof(char), 0);
+	ret = Recv(acc_fd, pdst_path, fileinfo.name_size * sizeof(char), 0);
 	if(ret < 0)
 	{
 		perror("error exits in recv dst path");
@@ -325,20 +293,23 @@ int recv_write_file(int acc_fd)
 	//清空
 	bzero(pdata, fileinfo.text_size * sizeof(char) + 1);
 
-	ret = recv(acc_fd, pdata, fileinfo.text_size, 0);
-	if(ret < 0)
+	//若文件数据超过 SEND_SIGLE_SIZE Byte 分多次接收
+	int rest_size = fileinfo.text_size;
+	int recv_num = rest_size / RECV_SINGLE_SIZE + 1;
+	for(int i = 0; i < recv_num; i++)
 	{
-		perror("error exits in recv data");
-		//释放资源
-		goto error_recv_finish;
-	}
-	else if(ret == 0)
-	{
-		printf("client offlines\n");
-		//释放资源
-		free(pdata);
-		free(pdst_path);
-		goto offline;
+		if(rest_size > RECV_SINGLE_SIZE)
+		{
+			Recv(acc_fd, pdata + i*RECV_SINGLE_SIZE, RECV_SINGLE_SIZE, 0);
+		}
+		else 
+		{
+			Recv(acc_fd, pdata + i*RECV_SINGLE_SIZE, rest_size, 0);
+
+		}
+		//修改剩余大小
+		rest_size = rest_size - RECV_SINGLE_SIZE;
+
 	}
 	printf("data:\n%s\n", pdata);
 
@@ -395,6 +366,34 @@ error_recv_finish:
 offline:
 	return 0;
 
+
+}
+
+
+ssize_t Recv(int sockfd, void *buff, size_t len, int flags)
+{
+	int ret;
+
+	//接收
+	ret = recv(sockfd, buff, len, flags);
+	if(ret < 0)
+	{
+		perror("error exists in Recv->recv");
+		return -1;
+
+	}
+
+	//回复接收成功
+	int RET = 1;
+	ret = send(sockfd, &RET, sizeof(RET), 0);
+	if(ret < 0)
+	{
+		perror("error exists in Recv->send");
+		return -1;
+
+	}
+
+	return len;
 
 }
 

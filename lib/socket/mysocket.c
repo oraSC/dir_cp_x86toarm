@@ -38,6 +38,9 @@ int server_create(int s_port, unsigned char *s_ip, int *c_port, unsigned char **
 	{
 		server_addr.sin_addr.s_addr = inet_addr(s_ip);
 	}
+	//设置允许重用本地地址和端口
+	int reuseaddr_enable = 1;
+	setsockopt(soc_fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr_enable, sizeof(reuseaddr_enable));
 
 	//2.绑定
 	ret = bind(soc_fd, (struct sockaddr *)&server_addr, server_addr_len);
@@ -62,6 +65,8 @@ int server_create(int s_port, unsigned char *s_ip, int *c_port, unsigned char **
 	struct sockaddr_in client_addr;
 	int client_addr_len = sizeof(client_addr);
 	bzero(&client_addr, client_addr_len);
+
+
 
 	int acc_fd = accept(soc_fd, (struct sockaddr *)&client_addr, &client_addr_len);
 	if(acc_fd < 0)
@@ -113,7 +118,7 @@ int server_create(int s_port, unsigned char *s_ip, int *c_port, unsigned char **
 	printf("send buff size:%d, len:%d\n", send_buff_size, send_buff_len);
 
 
-
+	
 
 
 	//客户端端口、地址
@@ -176,4 +181,65 @@ int client_create(int s_port, unsigned char *s_ip)
 	return soc_fd;
 
 }
+
+int soc_server_init(int *psoc_fd, unsigned char *s_ip, int s_port)
+{
 	
+	int ret;
+	
+	//创建socket(套接字)
+	*psoc_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if(*psoc_fd < 0)
+	{
+		perror("fail to create socket");
+		return -1;
+	}
+
+	//绑定套接字与网络地址
+	//1.初始化服务器 IPv4 地址结构体
+	struct sockaddr_in server_addr;
+	int server_addr_len = sizeof(server_addr);
+	bzero(&server_addr, server_addr_len);
+
+	server_addr.sin_family 	= AF_INET;
+	server_addr.sin_port	= htons(s_port);
+
+	//设置允许重用本地地址和端口
+	int reuseaddr_enable = 1;
+	setsockopt(*psoc_fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr_enable, sizeof(reuseaddr_enable));
+
+
+	if(s_ip != NULL)
+	{
+		server_addr.sin_addr.s_addr	= inet_addr(s_ip);
+	}
+	else
+	{
+		htonl(INADDR_ANY);	
+	}
+	//2.绑定
+	ret = bind(*psoc_fd, (struct sockaddr *)&server_addr, server_addr_len);
+	if(ret < 0)
+	{
+		perror("fail to bind socket");
+		return -1;
+	}
+	
+	//将待链接套接字设置为监听套接字
+	ret = listen(*psoc_fd, 5);
+	if(ret < 0)
+	{
+		perror("error exits in listen");
+		return -1;
+	}
+
+	printf("server is waiting for connection\n");
+
+
+
+
+}
+
+
+
+
